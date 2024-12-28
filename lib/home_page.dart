@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'dart:convert'; // Untuk mengelola JSON
-import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
+import 'ProductDetailPage.dart';
+import 'product_provider.dart';
 
 class HomePage extends StatefulWidget {
   @override
@@ -8,42 +9,20 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  List<dynamic> products = [];
-  bool isLoading = true;
-
   @override
   void initState() {
     super.initState();
-    fetchProducts();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final productProvider = Provider.of<ProductProvider>(context, listen: false);
+      productProvider.startPolling(); 
+    });
   }
 
-  Future<void> fetchProducts() async {
-    try {
-      print("Fetching products from the server...");
-      final response =
-      await http.get(Uri.parse('http://192.168.200.36:3000/products'));
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-
-        if (data is Map<String, dynamic> && data.containsKey('data')) {
-          setState(() {
-            products = data['data'];
-            isLoading = false;
-          });
-          print("Successfully fetched ${products.length} products.");
-        } else {
-          throw Exception("Unexpected response format: $data");
-        }
-      } else {
-        throw Exception("Failed to load products. Status code: ${response.statusCode}");
-      }
-    } catch (e) {
-      print("Error fetching products: $e");
-      setState(() {
-        isLoading = false;
-      });
-    }
+  @override
+  void dispose() {
+    final productProvider = Provider.of<ProductProvider>(context, listen: false);
+    productProvider.stopPolling(); 
+    super.dispose();
   }
 
   @override
@@ -61,73 +40,71 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
       ),
-      body: isLoading
-          ? Center(
-        child: CircularProgressIndicator(),
-      )
-          : ListView.builder(
-        itemCount: products.length,
-        itemBuilder: (context, index) {
-          final product = products[index];
-          return Card(
-            elevation: 8.0,
-            margin:
-            EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Color.fromRGBO(64, 75, 96, .9),
+      body: Consumer<ProductProvider>(
+        builder: (context, productProvider, child) {
+          if (productProvider.isLoading) {
+            return Center(child: CircularProgressIndicator());
+          }
+          if (productProvider.products.isEmpty) {
+            return Center(
+              child: Text(
+                'No products available',
+                style: TextStyle(color: Colors.white70),
               ),
-              child: ListTile(
-                contentPadding: EdgeInsets.symmetric(
-                    horizontal: 20.0, vertical: 10.0),
-                leading: Container(
-                  padding: EdgeInsets.only(right: 12.0),
+            );
+          }
+          return ListView.builder(
+            itemCount: productProvider.products.length,
+            itemBuilder: (context, index) {
+              final product = productProvider.products[index];
+              return Card(
+                elevation: 8.0,
+                margin: EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
+                child: Container(
                   decoration: BoxDecoration(
-                    border: Border(
-                      right:
-                      BorderSide(width: 1.0, color: Colors.white70),
-                    ),
+                    color: Color.fromRGBO(64, 75, 96, .9),
                   ),
-                  child: Icon(Icons.shopping_cart, color: Colors.white),
-                ),
-                title: Text(
-                  product['name'],
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                subtitle: Text(
-                  "Rp ${product['price']}",
-                  style: TextStyle(color: Colors.white70),
-                ),
-                trailing: Icon(
-                  Icons.keyboard_arrow_right,
-                  color: Colors.white,
-                  size: 30.0,
-                ),
-                onTap: () {
-                  // Navigasi ke halaman detail
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => Scaffold(
-                        appBar: AppBar(
-                          title: Text('Coming Soon'),
-                        ),
-                        body: Center(
-                          child: Text(
-                            'This product will be available soon!',
-                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                            textAlign: TextAlign.center,
-                          ),
+                  child: ListTile(
+                    contentPadding: EdgeInsets.symmetric(
+                        horizontal: 20.0, vertical: 10.0),
+                    leading: Container(
+                      padding: EdgeInsets.only(right: 12.0),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          right: BorderSide(width: 1.0, color: Colors.white70),
                         ),
                       ),
+                      child: Icon(Icons.shopping_cart, color: Colors.white),
                     ),
-                  );
-                },
-              ),
-            ),
+                    title: Text(
+                      product.name,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    subtitle: Text(
+                      "Rp ${product.price}",
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                    trailing: Icon(
+                      Icons.keyboard_arrow_right,
+                      color: Colors.white,
+                      size: 30.0,
+                    ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              ProductDetailPage(productId: product.id),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              );
+            },
           );
         },
       ),
